@@ -1,0 +1,73 @@
+SIBI SPORTS CLUB — HOSTING AND AUTOMATIC WHATSAPP SCHEDULING
+============================================================
+
+The website already uses Node.js (JavaScript) for its backend scheduler. It
+checks the SQLite database every 15 seconds for scheduled messages and sends
+those that are due using the official WhatsApp Cloud API integration.
+
+IMPORTANT: JavaScript cannot send WhatsApp messages directly to arbitrary
+phone numbers without an authorized WhatsApp delivery channel. The official
+Meta WhatsApp Cloud API credentials below are required for real delivery.
+
+RENDER DEPLOYMENT
+-----------------
+A render.yaml Blueprint is included at the project root. It configures:
+- Node.js web service running Admin/server.js
+- A persistent disk for Admin/data/elevate.sqlite
+- The /health health-check endpoint
+- Server-side environment variables for WhatsApp credentials
+- A generated session secret and admin password
+
+Steps:
+1. Create a private Git repository and upload the contents of this project.
+2. In Render, create a new Blueprint and connect that repository.
+3. Review the render.yaml settings and deploy the service.
+4. In the Render service Environment settings, set:
+   WHATSAPP_ACCESS_TOKEN = your Meta WhatsApp Cloud API access token
+   WHATSAPP_PHONE_NUMBER_ID = your WhatsApp Business phone-number ID
+   WHATSAPP_WEBHOOK_VERIFY_TOKEN = a long random token you choose
+   WHATSAPP_APP_SECRET = your Meta app secret (recommended for webhook verification)
+5. If you send business-initiated messages outside the 24-hour customer-service window,
+   create and get approval for a WhatsApp message template in Meta WhatsApp Manager.
+   For this implementation, the approved template must have one BODY text variable
+   ({{1}}). Set WHATSAPP_TEMPLATE_NAME to its exact Meta template name and
+   WHATSAPP_TEMPLATE_LANGUAGE to its language code (commonly en_US). The message body
+   you enter in the admin panel becomes that {{1}} variable. If this setting is blank,
+   the app sends a normal text message, which may be rejected outside the 24-hour window.
+6. In Meta Developers > WhatsApp > Configuration, set the webhook callback URL to
+   https://YOUR-DOMAIN/api/whatsapp/webhook and verify token to the same
+   WHATSAPP_WEBHOOK_VERIFY_TOKEN value. Subscribe to the messages field to receive
+   sent/delivered/read/failed status updates.
+7. Save changes and restart/redeploy the service.
+8. Open the deployed website and sign in using the ADMIN_EMAIL and generated
+   ADMIN_PASSWORD values shown in the Render service environment settings.
+9. Send a test message to a consenting test recipient before using bulk send.
+
+WHATSAPP REQUIREMENTS
+--------------------
+- Use Meta's official WhatsApp Cloud API; do not put access tokens in frontend
+  JavaScript or public files.
+- Business-initiated messages outside the 24-hour customer-service window may
+  require an approved WhatsApp message template.
+- Recipients must have opted in to receive the messages.
+- A successful API response means WhatsApp accepted the message; the separate webhook
+  status shows whether it was sent, delivered, read, or failed. Configure the webhook
+  for real delivery receipts. Delivery receipts may be delayed or unavailable until the
+  webhook is subscribed correctly.
+- Meta messaging charges/policies may apply.
+- Keep the service running. The scheduler runs in the Node.js process.
+- Use only one running service instance for this SQLite-backed scheduler unless
+  you add distributed locking/queueing; multiple instances can send duplicates.
+
+DATABASE AND EXISTING DATA
+--------------------------
+The persistent disk protects data created on the hosted service across normal
+restarts and redeployments. Your existing local Admin/data/elevate.sqlite file
+is NOT automatically copied to the new hosted disk. If you need your existing
+members and records online, back up that file and import/copy it to the hosted
+persistent disk before using the live site. Do not overwrite a live database
+without first making a backup.
+
+The Render plan and persistent disk may have a cost. Check current Render
+pricing before deployment. Other Node.js hosts can work too, but they must keep
+background Node.js processes running and provide persistent storage for SQLite.
